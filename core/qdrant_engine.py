@@ -58,17 +58,18 @@ class QdrantEdgeEngine:
         self._shard.update(UpdateOperation.upsert_points([point]))
         self._count += 1
 
-    def search(self, vector: np.ndarray, top_k: int = 5):
-
+    def search(self, vector: np.ndarray) -> float:
         if self._count == 0:
-            return 1.0  
+            return 1.0
+
+        k = min(config.TOP_K_SEARCH, self._count)
 
         req = QueryRequest(
             query=Query.Nearest(
                 query=vector.tolist(),
                 using=config.VECTOR_NAME
             ),
-            limit=min(top_k, self._count),
+            limit=k,
         )
 
         results = self._shard.query(req)
@@ -76,7 +77,8 @@ class QdrantEdgeEngine:
         if not results:
             return 1.0
 
-        return float(results[0].score)
+        # Average top-k scores for a more robust similarity estimate
+        return float(np.mean([r.score for r in results]))
 
     def flush(self):
         self._shard.flush()

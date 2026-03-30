@@ -17,12 +17,7 @@ class AnomalyDetector:
     def __init__(self, engine):
         self.engine = engine
         self.step = 0
-
-        # Rolling window for dynamic baseline
-        self.history = deque(maxlen=50)
-
-        # Stabilization phase (no learning)
-        self.stabilization_steps = 100
+        self.history = deque(maxlen=config.BASELINE_WINDOW)
 
     def process(self, vector):
 
@@ -32,76 +27,57 @@ class AnomalyDetector:
 
         # ======================
         # WARMUP PHASE
+        # Store only if similarity looks normal (not a spike).
+        # Uses a loose threshold: more than 2 std below current history mean.
+        # On the very first few steps history is empty so we always store.
         # ======================
         if self.step <= config.WARMUP_STEPS:
-            self.engine.store(vector)
+            if len(self.history) >= 5:
+                arr = np.array(self.history)
+                mean, std = arr.mean(), max(arr.std(), 1e-6)
+                is_spike = (similarity - mean) / std < config.ZSCORE_ANOMALY_THRESHOLD
+            else:
+                is_spike = False
+
+            if not is_spike:
+                self.engine.store(vector)
+
             self.history.append(similarity)
 
-            return AnomalyResult(
-                self.step, similarity, False, "WARMUP"
-            )
+            return AnomalyResult(self.step, similarity, False, "WARMUP")
 
         # ======================
         # STABILIZATION PHASE
+        # Observe without storing or flagging anomalies.
         # ======================
-        if self.step <= self.stabilization_steps:
+        if self.step <= config.STABILIZATION_STEPS:
             self.history.append(similarity)
-
-            return AnomalyResult(
-                self.step, similarity, False, "STABILIZING"
-            )
+            return AnomalyResult(self.step, similarity, False, "STABILIZING")
 
         # ======================
         # NEED ENOUGH DATA
         # ======================
         if len(self.history) < 10:
             self.history.append(similarity)
-
-            return AnomalyResult(
-                self.step, similarity, False, "COLLECTING"
-            )
+            return AnomalyResult(self.step, similarity, False, "COLLECTING")
 
         # ======================
-        # DYNAMIC BASELINE
+        # DYNAMIC BASELINE (Z-SCORE)
         # ======================
         arr = np.array(self.history)
-
         mean = arr.mean()
-        std = arr.std()
+        std = max(arr.std(), 1e-6)
 
-        if std < 1e-6:
-            std = 1e-6
-
-        # ======================
-        # Z-SCORE DETECTION
-        # ======================
         z_score = (similarity - mean) / std
-
-        # STRONGER anomaly condition
-        is_anomaly = z_score < -2.5
+        is_anomaly = z_score < config.ZSCORE_ANOMALY_THRESHOLD
 
         # ======================
-        # SAFE LEARNING LOGIC
+        # SAFE LEARNING
+        # Learn only confidently normal vectors after stabilization.
         # ======================
-        # Learn ONLY if:
-        # - Not anomaly
-        # - High confidence (far from boundary)
-        # - After stabilization phase
-        if (
-            not is_anomaly
-            and z_score > -1.0   # confidence filter
-            and self.step > self.stabilization_steps
-        ):
+        if not is_anomaly and z_score > config.ZSCORE_LEARN_THRESHOLD:
             self.engine.store(vector)
 
-        # Update history AFTER decision
         self.history.append(similarity)
 
-        reason = f"Z={z_score:.2f}"
-
-        return AnomalyResult(
-            self.step,
-            similarity,
-            is_anomaly,
-            reason
-        )
+        return AnomalyResult(self.step, similarity, is_anomaly, f"Z={z_score:.2f}")
