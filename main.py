@@ -14,7 +14,7 @@ import config
 # =========================
 st.set_page_config(
     page_title="Anomaly Detection",
-    page_icon="🔬",
+    page_icon="",
     layout="wide",
 )
 
@@ -275,15 +275,15 @@ try:
         if result.reason == "WARMUP":
             phase_label = "WARMUP"
             phase_css   = "phase-training"
-            phase_icon  = "🟢 TRAINING PHASE — Learning normal patterns"
+            phase_icon  = "TRAINING PHASE — Learning normal patterns"
         elif result.reason == "STABILIZING":
             phase_label = "STABILIZING"
             phase_css   = "phase-stabilizing"
-            phase_icon  = "🔵 STABILIZING — Building baseline"
+            phase_icon  = "STABILIZING — Building baseline"
         else:
             phase_label = "DETECTING"
             phase_css   = "phase-detecting"
-            phase_icon  = "⚪ LIVE DETECTION"
+            phase_icon  = "LIVE DETECTION"
 
         # =========================
         # FEED LINE
@@ -316,7 +316,7 @@ try:
         # =========================
         if result.is_anomaly:
             anom_lines.append(
-                f"⚠ Step {i} | Sim={result.similarity:.4f} | {result.reason} | "
+                f"Step {i} | Sim={result.similarity:.4f} | {result.reason} | "
                 f"T={temperature:.1f} H={humidity:.1f} V={vibration:.3f}"
             )
 
@@ -347,14 +347,14 @@ try:
         if result.is_anomaly:
             alert_box.markdown(
                 f"<div class='alert-anomaly'>"
-                f"🚨 ANOMALY DETECTED &nbsp;|&nbsp; "
+                f"ANOMALY DETECTED &nbsp;|&nbsp; "
                 f"Similarity = {result.similarity:.4f} &nbsp;|&nbsp; Step {result.step}"
                 f"</div>",
                 unsafe_allow_html=True
             )
         else:
             alert_box.markdown(
-                f"<div class='alert-normal'>✔ System Normal &nbsp;|&nbsp; {result.reason}</div>",
+                f"<div class='alert-normal'>System Normal &nbsp;|&nbsp; {result.reason}</div>",
                 unsafe_allow_html=True
             )
 
